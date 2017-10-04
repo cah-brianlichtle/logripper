@@ -14,8 +14,8 @@ val PW = ""
 
 
 
-val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Develop"
-val BUILD_NUMBER = "602"
+val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
+val BUILD_NUMBER = "1378"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
 
@@ -78,7 +78,6 @@ private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader): Boolean 
         var line = reader.readLine() ?: break
 
         getStartAndEndLists(line)
-        println(line)
         startIndex += line.toByteArray().size
         isLastLine = line.startsWith(FINAL_LINE)
     }
@@ -100,28 +99,33 @@ private fun getStartAndEndLists(contents: String) {
 
 fun parseEntry(contents: String) {
     try {
-        val entryEndDateTime = getDateString(contents)
-        val massagedEntry = contents.replace("[SDR.printStream] [", "")
-                .replace("] STDOUT", "")
-                .replace(entryEndDateTime,"")
-                .replace(" [STRL.testFailed]", "")
-                .replace(" [STRL.testEnded]", "")
-                .replace("test=com.cardinalhealth.alfred.patient.", "")
-        val parts = massagedEntry.trim().split(' ')
-        val name = parts[2]
-        val tabletId = parts[0]
+        if (!contents.contains("[STRL.testFailed] failed")) {
+            val entryEndDateTime = getDateString(contents)
+            val testPassed = contents.contains("STRL.testEnded")
+            val massagedEntry = contents.replace("[SDR.printStream] [", "")
+                    .replace("] STDOUT", "")
+                    .replace(entryEndDateTime, "")
+                    .replace(" [STRL.testFailed]", "")
+                    .replace(" [STRL.testEnded]", "")
+                    .replace("test=com.cardinalhealth.alfred.patient.", "")
+            val parts = massagedEntry.trim().split(' ')
+            val name = parts[2]
+            val tabletId = parts[0]
 
-        val startEntry: String = startList.first{ entry: String -> entry.contains(name) }
-        val entryStartDateTime = getDateString(startEntry)
+            val startEntry: String = startList.first { entry: String -> entry.contains(name) }
+            val entryStartDateTime = getDateString(startEntry)
 
-        val startDT = translateDateTime(entryStartDateTime)
-        val endDT = translateDateTime(entryEndDateTime)
-        val executionTime = endDT.time - startDT.time
+            val startDT = translateDateTime(entryStartDateTime)
+            val endDT = translateDateTime(entryEndDateTime)
+            val executionTime = endDT.time - startDT.time
 
-        populateAggregateMap(tabletId, executionTime)
+            populateAggregateMap(tabletId, executionTime)
 
-        println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId")
-        entries.add(Entry(name, tabletId, executionTime))
+            //if (!testPassed) {
+                println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
+            //}
+            entries.add(Entry(name, tabletId, executionTime, testPassed))
+        }
     } catch (ex: Exception) {
         println("ERROR: $contents")
     }

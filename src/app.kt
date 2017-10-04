@@ -29,30 +29,27 @@ var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
 var startIndex: Int = 0
 
 fun main(args: Array<String>) {
-    var contents: List<String> = getContentsFromUrl()
-    processContents(contents)
+    getContentsFromUrl()
+    processContents()
 }
 
-fun processContents(contents: List<String>) {
-    getStartAndEndLists(contents)
+fun processContents() {
     parseAllEntries()
     generateRunTimeStats()
     println("Entry Count: " + entries.size)
 }
 
-fun getContentsFromUrl() : List<String>
+fun getContentsFromUrl()
 {
-    var output = mutableListOf<String>()
-
     try {
         var continueRequestLoop = true
         while (continueRequestLoop) {
             var content = getInputStreamFromConnection()
             val reader = BufferedReader (InputStreamReader (content))
 
-            processNewLinesAndGetNewStartIndex(reader, output)
+            val isLastLine = processNewLinesAndGetNewStartIndex(reader)
 
-            if (output.last().startsWith(FINAL_LINE)) {
+            if (isLastLine) {
                 break
             } else {
                 Thread.sleep(2000)
@@ -60,8 +57,6 @@ fun getContentsFromUrl() : List<String>
         }
     } catch (e: Exception) {
         println(e.toString())
-    } finally {
-        return output
     }
 }
 
@@ -77,14 +72,20 @@ private fun getInputStreamFromConnection(): InputStream {
     return connection.inputStream
 }
 
-private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader, output: MutableList<String>) {
+private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader): Boolean {
+    var isLastLine = false
+
     while (true) {
         var line = reader.readLine() ?: break
 
-        output.add(line)
+        getStartAndEndLists(line)
         startIndex += line.toByteArray().size
         println(line)
+
+        isLastLine = line.startsWith(FINAL_LINE)
     }
+
+    return isLastLine
 }
 
 private fun generateRunTimeStats() {
@@ -95,9 +96,12 @@ private fun parseAllEntries() {
     startList.forEach { entry: String -> addToEntryList(entry) }
 }
 
-private fun getStartAndEndLists(fileContents: List<String>) {
-    fileContents.forEach { entry: String -> if (entry.contains(TEST_STARTED)) startList.add(entry) }
-    fileContents.forEach { entry: String -> if (entry.contains(TEST_ENDED)) endList.add(entry) }
+private fun getStartAndEndLists(contents: String) {
+    if (contents.contains(TEST_STARTED)) {
+        startList.add(contents)
+    } else if (contents.contains(TEST_ENDED)) {
+        endList.add(contents)
+    }
 }
 
 fun translateDateTime (data: String): Date {

@@ -21,10 +21,10 @@ val FINAL_LINE = "Finished: "
 
 val TEST_STARTED = "testStarted"
 val TEST_ENDED = "testEnded"
+val TEST_FAILED = "testFailed"
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
-var endList: MutableList<String> = mutableListOf()
 var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
 var startIndex: Int = 0
 
@@ -34,7 +34,6 @@ fun main(args: Array<String>) {
 }
 
 fun processContents() {
-    parseAllEntries()
     generateRunTimeStats()
     println("Entry Count: " + entries.size)
 }
@@ -80,8 +79,6 @@ private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader): Boolean 
 
         getStartAndEndLists(line)
         startIndex += line.toByteArray().size
-        println(line)
-
         isLastLine = line.startsWith(FINAL_LINE)
     }
 
@@ -92,40 +89,28 @@ private fun generateRunTimeStats() {
     aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: " + entry.key + ", Number of Tests: " + entry.value.numberOfTests + ", Total Execution Time: " + entry.value.totalRunTime) }
 }
 
-private fun parseAllEntries() {
-    startList.forEach { entry: String -> addToEntryList(entry) }
-}
-
 private fun getStartAndEndLists(contents: String) {
     if (contents.contains(TEST_STARTED)) {
         startList.add(contents)
-    } else if (contents.contains(TEST_ENDED)) {
-        endList.add(contents)
+    } else if (contents.contains(TEST_ENDED) || contents.contains(TEST_FAILED)) {
+        parseEntry(contents)
     }
 }
 
-fun translateDateTime (data: String): Date {
-    val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
-    return dateFormat.parse(data)
-}
-
-fun getDateString (rawData: String): String {
-    return rawData.substring(0,19)
-}
-
-fun  addToEntryList(rawEntry: String) {
-    val entryStartDateTime = getDateString(rawEntry)
-    val massagedEntry = rawEntry.replace("[SDR.printStream] [", "")
+fun parseEntry(contents: String) {
+    val entryEndDateTime = getDateString(contents)
+    val massagedEntry = contents.replace("[SDR.printStream] [", "")
             .replace("] STDOUT", "")
-            .replace(entryStartDateTime,"")
-            .replace(" [STRL.testStarted]", "")
+            .replace(entryEndDateTime,"")
+            .replace(" [STRL.testFailed]", "")
+            .replace(" [STRL.testEnded]", "")
             .replace("test=com.cardinalhealth.alfred.patient.", "")
     val parts = massagedEntry.trim().split(' ')
     val name = parts[2]
     val tabletId = parts[0]
 
-    val endEntry: String = endList.first{ entry: String -> entry.contains(name) }
-    val entryEndDateTime = getDateString(endEntry)
+    val startEntry: String = startList.first{ entry: String -> entry.contains(name) }
+    val entryStartDateTime = getDateString(startEntry)
 
     val startDT = translateDateTime(entryStartDateTime)
     val endDT = translateDateTime(entryEndDateTime)
@@ -135,6 +120,15 @@ fun  addToEntryList(rawEntry: String) {
 
     println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId")
     entries.add(Entry(name, tabletId, executionTime))
+}
+
+fun translateDateTime (data: String): Date {
+    val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
+    return dateFormat.parse(data)
+}
+
+fun getDateString (rawData: String): String {
+    return rawData.substring(0,19)
 }
 
 private fun populateAggregateMap(tabletId: String, executionTime: Long) {

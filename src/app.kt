@@ -78,6 +78,7 @@ private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader): Boolean 
         var line = reader.readLine() ?: break
 
         getStartAndEndLists(line)
+        println(line)
         startIndex += line.toByteArray().size
         isLastLine = line.startsWith(FINAL_LINE)
     }
@@ -98,28 +99,33 @@ private fun getStartAndEndLists(contents: String) {
 }
 
 fun parseEntry(contents: String) {
-    val entryEndDateTime = getDateString(contents)
-    val massagedEntry = contents.replace("[SDR.printStream] [", "")
-            .replace("] STDOUT", "")
-            .replace(entryEndDateTime,"")
-            .replace(" [STRL.testFailed]", "")
-            .replace(" [STRL.testEnded]", "")
-            .replace("test=com.cardinalhealth.alfred.patient.", "")
-    val parts = massagedEntry.trim().split(' ')
-    val name = parts[2]
-    val tabletId = parts[0]
+    try {
+        val entryEndDateTime = getDateString(contents)
+        val massagedEntry = contents.replace("[SDR.printStream] [", "")
+                .replace("] STDOUT", "")
+                .replace(entryEndDateTime,"")
+                .replace(" [STRL.testFailed]", "")
+                .replace(" [STRL.testEnded]", "")
+                .replace("test=com.cardinalhealth.alfred.patient.", "")
+        val parts = massagedEntry.trim().split(' ')
+        val name = parts[2]
+        val tabletId = parts[0]
 
-    val startEntry: String = startList.first{ entry: String -> entry.contains(name) }
-    val entryStartDateTime = getDateString(startEntry)
+        val startEntry: String = startList.first{ entry: String -> entry.contains(name) }
+        val entryStartDateTime = getDateString(startEntry)
 
-    val startDT = translateDateTime(entryStartDateTime)
-    val endDT = translateDateTime(entryEndDateTime)
-    val executionTime = endDT.time - startDT.time
+        val startDT = translateDateTime(entryStartDateTime)
+        val endDT = translateDateTime(entryEndDateTime)
+        val executionTime = endDT.time - startDT.time
 
-    populateAggregateMap(tabletId, executionTime)
+        populateAggregateMap(tabletId, executionTime)
 
-    println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId")
-    entries.add(Entry(name, tabletId, executionTime))
+        println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId")
+        entries.add(Entry(name, tabletId, executionTime))
+    } catch (ex: Exception) {
+        println("ERROR: $contents")
+    }
+
 }
 
 fun translateDateTime (data: String): Date {

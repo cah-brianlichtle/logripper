@@ -10,7 +10,7 @@ val UN = ""
 val PW = ""
 
 val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-val BUILD_NUMBER = "1380"
+val BUILD_NUMBER = "1378"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
 val REQUEST_METHOD = "GET"
@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
 
 fun processContents() {
     generateRunTimeStats()
-    println("Entry Count: " + entries.size)
+    println("Test Count: ${entries.size}, Tests Passed: ${entries.filter{entry -> entry.testPassed }.count()}, Tests Failed: ${entries.filter{entry -> !entry.testPassed }.count()}")
 }
 
 fun getContentsFromUrl()

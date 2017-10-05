@@ -3,7 +3,6 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.*
 import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
@@ -20,6 +19,7 @@ val TEST_ENDED = "STRL.testEnded"
 val TEST_FAILED = "STRL.testFailed"
 val TEST_FAILED_REASON = "[STRL.testFailed] failed"
 val REPLACE_STRINGS: List<String> = mutableListOf(TEST_STARTED,TEST_ENDED,TEST_FAILED,"SDR.printStream","test=com.cardinalhealth.alfred.patient.","STDOUT","[","]")
+val DATE_FORMAT = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
@@ -108,8 +108,8 @@ fun parseEntry(contents: String) {
 
 private fun getTestExecutionTime(testName: String, entryEndDateTime: String): Long {
     val entryStartDateTime = getDateString(getCorrespondingStartEntry(testName))
-    val startDT = translateDateTime(entryStartDateTime)
-    val endDT = translateDateTime(entryEndDateTime)
+    val startDT = DATE_FORMAT.parse(entryStartDateTime)
+    val endDT = DATE_FORMAT.parse(entryEndDateTime)
     return endDT.time - startDT.time
 }
 
@@ -124,11 +124,6 @@ private fun getTestNameAndTabletId(contents: String, entryEndDateTime: String): 
     val testName = parts[2]
     val tabletId = parts[0]
     return Pair(testName, tabletId)
-}
-
-fun translateDateTime (data: String): Date {
-    val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
-    return dateFormat.parse(data)
 }
 
 fun getDateString (rawData: String): String {

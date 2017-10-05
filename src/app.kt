@@ -10,23 +10,22 @@ import javax.xml.bind.DatatypeConverter
 val UN = ""
 val PW = ""
 
-
-
-
-
 val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
 val BUILD_NUMBER = "1378"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
+val REQUEST_METHOD = "GET"
 
-val TEST_STARTED = "testStarted"
-val TEST_ENDED = "testEnded"
-val TEST_FAILED = "testFailed"
+val TEST_STARTED = "STRL.testStarted"
+val TEST_ENDED = "STRL.testEnded"
+val TEST_FAILED = "STRL.testFailed"
+val TEST_FAILED_REASON = "[STRL.testFailed] failed"
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
 var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
 var startIndex: Int = 0
+var finishedProcessingBuildJob = false
 
 fun main(args: Array<String>) {
     getContentsFromUrl()
@@ -40,96 +39,95 @@ fun processContents() {
 
 fun getContentsFromUrl()
 {
-    try {
-        var continueRequestLoop = true
-        while (continueRequestLoop) {
-            var content = getInputStreamFromConnection()
-            val reader = BufferedReader (InputStreamReader (content))
+    processNewLinesAndGetNewStartIndex(getBufferedReader())
 
-            val isLastLine = processNewLinesAndGetNewStartIndex(reader)
-
-            if (isLastLine) {
-                break
-            } else {
-                Thread.sleep(2000)
-            }
-        }
-    } catch (e: Exception) {
-        println(e.toString())
+    if (!finishedProcessingBuildJob) {
+        Thread.sleep(2000)
+        getContentsFromUrl()
     }
+}
+
+private fun getBufferedReader(): BufferedReader {
+    var content = getInputStreamFromConnection()
+    return BufferedReader(InputStreamReader(content))
 }
 
 private fun getInputStreamFromConnection(): InputStream {
     val url = URL ("$BASE_URL/$BUILD_NUMBER/$URL_END=$startIndex")
     val encoding = DatatypeConverter.printBase64Binary((UN + ":" +  PW).toByteArray(charset("utf-8")))
-
     val connection = url.openConnection() as HttpURLConnection
-    connection.requestMethod = "GET"
+
+    connection.requestMethod = REQUEST_METHOD
     connection.doOutput = true
     connection.setRequestProperty("Authorization", "Basic " + encoding)
 
     return connection.inputStream
 }
 
-private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader): Boolean {
-    var isLastLine = false
-
+private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader){
     while (true) {
         var line = reader.readLine() ?: break
-
-        getStartAndEndLists(line)
-        startIndex += line.toByteArray().size
-        isLastLine = line.startsWith(FINAL_LINE)
+        processCurrentLine(line)
     }
-
-    return isLastLine
 }
 
 private fun generateRunTimeStats() {
-    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: " + entry.key + ", Number of Tests: " + entry.value.numberOfTests + ", Total Execution Time: " + entry.value.totalRunTime) }
+    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: ${entry.key}, Number of Tests: ${entry.value.numberOfTests} , Total Execution Time: ${entry.value.totalRunTime}") }
 }
 
-private fun getStartAndEndLists(contents: String) {
-    if (contents.contains(TEST_STARTED)) {
-        startList.add(contents)
-    } else if (contents.contains(TEST_ENDED) || contents.contains(TEST_FAILED)) {
-        parseEntry(contents)
+private fun processCurrentLine(line: String) {
+    if (line.contains(TEST_STARTED)) {
+        startList.add(line)
+    } else if (line.contains(TEST_ENDED) || line.contains(TEST_FAILED)) {
+        parseEntry(line)
     }
+
+    startIndex += line.toByteArray().size
+    finishedProcessingBuildJob = line.startsWith(FINAL_LINE)
 }
 
 fun parseEntry(contents: String) {
     try {
-        if (!contents.contains("[STRL.testFailed] failed")) {
+        if (!contents.contains(TEST_FAILED_REASON)) {
             val entryEndDateTime = getDateString(contents)
             val testPassed = contents.contains("STRL.testEnded")
-            val massagedEntry = contents.replace("[SDR.printStream] [", "")
-                    .replace("] STDOUT", "")
-                    .replace(entryEndDateTime, "")
-                    .replace(" [STRL.testFailed]", "")
-                    .replace(" [STRL.testEnded]", "")
-                    .replace("test=com.cardinalhealth.alfred.patient.", "")
-            val parts = massagedEntry.trim().split(' ')
-            val name = parts[2]
-            val tabletId = parts[0]
-
-            val startEntry: String = startList.first { entry: String -> entry.contains(name) }
-            val entryStartDateTime = getDateString(startEntry)
-
-            val startDT = translateDateTime(entryStartDateTime)
-            val endDT = translateDateTime(entryEndDateTime)
-            val executionTime = endDT.time - startDT.time
+            val (testName, tabletId) = getTestNameAndTabletId(contents, entryEndDateTime)
+            val executionTime = getTestExecutionTime(testName, entryEndDateTime)
 
             populateAggregateMap(tabletId, executionTime)
 
             //if (!testPassed) {
-                println("Test: $name, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
+                println("Test: $testName, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
             //}
-            entries.add(Entry(name, tabletId, executionTime, testPassed))
+            entries.add(Entry(testName, tabletId, executionTime, testPassed))
         }
     } catch (ex: Exception) {
         println("ERROR: $contents")
     }
+}
 
+private fun getTestExecutionTime(testName: String, entryEndDateTime: String): Long {
+    val entryStartDateTime = getDateString(getCorrespondingStartEntry(testName))
+    val startDT = translateDateTime(entryStartDateTime)
+    val endDT = translateDateTime(entryEndDateTime)
+    return endDT.time - startDT.time
+}
+
+private fun getCorrespondingStartEntry(testName: String): String {
+    return startList.first { entry: String -> entry.contains(testName) }
+}
+
+private fun getTestNameAndTabletId(contents: String, entryEndDateTime: String): Pair<String, String> {
+    val massagedEntry = contents.replace("[SDR.printStream] [", "")
+            .replace("] STDOUT", "")
+            .replace(entryEndDateTime, "")
+            .replace(" [STRL.testFailed]", "")
+            .replace(" [STRL.testEnded]", "")
+            .replace("test=com.cardinalhealth.alfred.patient.", "")
+    val parts = massagedEntry.trim().split(' ')
+    val testName = parts[2]
+    val tabletId = parts[0]
+    return Pair(testName, tabletId)
 }
 
 fun translateDateTime (data: String): Date {

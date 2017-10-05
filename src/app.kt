@@ -11,15 +11,15 @@ val UN = ""
 val PW = ""
 
 val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-val BUILD_NUMBER = "1378"
+val BUILD_NUMBER = "1380"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
 val REQUEST_METHOD = "GET"
-
 val TEST_STARTED = "STRL.testStarted"
 val TEST_ENDED = "STRL.testEnded"
 val TEST_FAILED = "STRL.testFailed"
 val TEST_FAILED_REASON = "[STRL.testFailed] failed"
+val REPLACE_STRINGS: List<String> = mutableListOf(TEST_STARTED,TEST_ENDED,TEST_FAILED,"SDR.printStream","test=com.cardinalhealth.alfred.patient.","STDOUT","[","]")
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
@@ -90,7 +90,7 @@ fun parseEntry(contents: String) {
     try {
         if (!contents.contains(TEST_FAILED_REASON)) {
             val entryEndDateTime = getDateString(contents)
-            val testPassed = contents.contains("STRL.testEnded")
+            val testPassed = contents.contains(TEST_ENDED)
             val (testName, tabletId) = getTestNameAndTabletId(contents, entryEndDateTime)
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
 
@@ -118,13 +118,9 @@ private fun getCorrespondingStartEntry(testName: String): String {
 }
 
 private fun getTestNameAndTabletId(contents: String, entryEndDateTime: String): Pair<String, String> {
-    val massagedEntry = contents.replace("[SDR.printStream] [", "")
-            .replace("] STDOUT", "")
-            .replace(entryEndDateTime, "")
-            .replace(" [STRL.testFailed]", "")
-            .replace(" [STRL.testEnded]", "")
-            .replace("test=com.cardinalhealth.alfred.patient.", "")
-    val parts = massagedEntry.trim().split(' ')
+    var retString = contents.replace(entryEndDateTime, "")
+    REPLACE_STRINGS.forEach { replaceString -> retString = retString.replace(replaceString, "") }
+    val parts = retString.trim().split(' ')
     val testName = parts[2]
     val tabletId = parts[0]
     return Pair(testName, tabletId)

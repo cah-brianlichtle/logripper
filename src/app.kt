@@ -7,7 +7,7 @@ import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
 val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-val BUILD_NUMBER = "1378"
+val BUILD_NUMBER = "1380"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
 val REQUEST_METHOD = "GET"
@@ -44,6 +44,15 @@ fun getContentsFromUrl()
     }
 }
 
+fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String  {
+    var time = executionTime / 1000
+    if (time < 60) {
+        return "$time sec."
+    }
+    var minutes = (time / 60)
+    return "$minutes min. ${time - (minutes * 60)} sec."
+}
+
 private fun getBufferedReader(): BufferedReader {
     var content = getInputStreamFromConnection()
     return BufferedReader(InputStreamReader(content))
@@ -69,7 +78,7 @@ private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader){
 }
 
 private fun generateRunTimeStats() {
-    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: ${entry.key}, Number of Tests: ${entry.value.numberOfTests} , Total Execution Time: ${entry.value.totalRunTime / 1000} seconds") }
+    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: ${entry.key}, Number of Tests: ${entry.value.numberOfTests} , Total Execution Time: ${convertExecutionTimeToMinutesAndSeconds(entry.value.totalRunTime)}") }
 }
 
 private fun processCurrentLine(line: String) {
@@ -91,7 +100,7 @@ fun parseEntry(contents: String) {
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
             val testPassed = contents.contains(TEST_ENDED)
 
-            println("Test: $testName, Execution Time: ${ executionTime / 1000 } sec., Tablet Id: $tabletId, Test Passed: $testPassed")
+            println("Test: $testName, Execution Time: ${ convertExecutionTimeToMinutesAndSeconds(executionTime) }, Tablet Id: $tabletId, Test Passed: $testPassed")
 
             populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))
@@ -115,7 +124,7 @@ private fun getCorrespondingStartEntry(testName: String): String {
 
 private fun getTestNameAndTabletId(contents: String): Pair<String, String> {
     var parts = contents.split(' ').filter{ c -> !REPLACE_STRINGS.contains(c) && c.isNotEmpty()}
-    var testName = parts[1].split('#')[1]
+    var testName = parts[1]
     var tabletId = parts[0].replace("[","").replace("]","")
     return Pair(testName, tabletId)
 }

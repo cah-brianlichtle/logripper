@@ -6,9 +6,6 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
-val UN = ""
-val PW = ""
-
 val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
 val BUILD_NUMBER = "1378"
 val URL_END = "logText/progressiveText?start"
@@ -54,7 +51,7 @@ private fun getBufferedReader(): BufferedReader {
 
 private fun getInputStreamFromConnection(): InputStream {
     val url = URL ("$BASE_URL/$BUILD_NUMBER/$URL_END=$startIndex")
-    val encoding = DatatypeConverter.printBase64Binary((UN + ":" +  PW).toByteArray(charset("utf-8")))
+    val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" +  System.getenv("pw")).toByteArray(charset("utf-8")))
     val connection = url.openConnection() as HttpURLConnection
 
     connection.requestMethod = REQUEST_METHOD
@@ -72,7 +69,7 @@ private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader){
 }
 
 private fun generateRunTimeStats() {
-    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: ${entry.key}, Number of Tests: ${entry.value.numberOfTests} , Total Execution Time: ${entry.value.totalRunTime}") }
+    aggregationList.forEach { entry: Map.Entry<String, TabletResults> -> println("Tablet: ${entry.key}, Number of Tests: ${entry.value.numberOfTests} , Total Execution Time: ${entry.value.totalRunTime / 1000} seconds") }
 }
 
 private fun processCurrentLine(line: String) {
@@ -94,9 +91,7 @@ fun parseEntry(contents: String) {
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
             val testPassed = contents.contains(TEST_ENDED)
 
-            //if (!testPassed) {
-            println("Test: $testName, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
-            //}
+            println("Test: $testName, Execution Time: ${ executionTime / 1000 } sec., Tablet Id: $tabletId, Test Passed: $testPassed")
 
             populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))

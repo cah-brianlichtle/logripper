@@ -14,11 +14,11 @@ val BUILD_NUMBER = "1378"
 val URL_END = "logText/progressiveText?start"
 val FINAL_LINE = "Finished: "
 val REQUEST_METHOD = "GET"
-val TEST_STARTED = "STRL.testStarted"
-val TEST_ENDED = "STRL.testEnded"
-val TEST_FAILED = "STRL.testFailed"
-val TEST_FAILED_REASON = "[STRL.testFailed] failed"
-val REPLACE_STRINGS: List<String> = mutableListOf(TEST_STARTED,TEST_ENDED,TEST_FAILED,"SDR.printStream","test=com.cardinalhealth.alfred.patient.","STDOUT","[","]")
+val TEST_STARTED = "[STRL.testStarted]"
+val TEST_ENDED = "[STRL.testEnded]"
+val TEST_FAILED = "[STRL.testFailed]"
+val TEST_FAILED_REASON = "$TEST_FAILED failed"
+val REPLACE_STRINGS: List<String> = mutableListOf(TEST_STARTED,TEST_ENDED,TEST_FAILED,"[SDR.printStream]","test=com.cardinalhealth.alfred.patient.activity.","STDOUT")
 val DATE_FORMAT = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 
 var entries: MutableList<Entry> = mutableListOf()
@@ -59,7 +59,7 @@ private fun getInputStreamFromConnection(): InputStream {
 
     connection.requestMethod = REQUEST_METHOD
     connection.doOutput = true
-    connection.setRequestProperty("Authorization", "Basic " + encoding)
+    connection.setRequestProperty("Authorization", "Basic $encoding")
 
     return connection.inputStream
 }
@@ -90,19 +90,19 @@ fun parseEntry(contents: String) {
     try {
         if (!contents.contains(TEST_FAILED_REASON)) {
             val entryEndDateTime = getDateString(contents)
-            val testPassed = contents.contains(TEST_ENDED)
-            val (testName, tabletId) = getTestNameAndTabletId(contents, entryEndDateTime)
+            val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime,""))
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
-
-            populateAggregateMap(tabletId, executionTime)
+            val testPassed = contents.contains(TEST_ENDED)
 
             //if (!testPassed) {
-                println("Test: $testName, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
+            println("Test: $testName, Execution Time: $executionTime, Tablet Id: $tabletId, Test Passed: $testPassed")
             //}
+
+            populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))
         }
     } catch (ex: Exception) {
-        println("ERROR: $contents")
+        println("ERROR PARSING ENTRY: $contents")
     }
 }
 
@@ -110,6 +110,7 @@ private fun getTestExecutionTime(testName: String, entryEndDateTime: String): Lo
     val entryStartDateTime = getDateString(getCorrespondingStartEntry(testName))
     val startDT = DATE_FORMAT.parse(entryStartDateTime)
     val endDT = DATE_FORMAT.parse(entryEndDateTime)
+
     return endDT.time - startDT.time
 }
 
@@ -117,12 +118,10 @@ private fun getCorrespondingStartEntry(testName: String): String {
     return startList.first { entry: String -> entry.contains(testName) }
 }
 
-private fun getTestNameAndTabletId(contents: String, entryEndDateTime: String): Pair<String, String> {
-    var retString = contents.replace(entryEndDateTime, "")
-    REPLACE_STRINGS.forEach { replaceString -> retString = retString.replace(replaceString, "") }
-    val parts = retString.trim().split(' ')
-    val testName = parts[2]
-    val tabletId = parts[0]
+private fun getTestNameAndTabletId(contents: String): Pair<String, String> {
+    var parts = contents.split(' ').filter{ c -> !REPLACE_STRINGS.contains(c) && c.isNotEmpty()}
+    var testName = parts[1].split('#')[1]
+    var tabletId = parts[0].replace("[","").replace("]","")
     return Pair(testName, tabletId)
 }
 

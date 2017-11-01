@@ -6,17 +6,17 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
-val BASE_URL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-val BUILD_NUMBER = "1380"
-val URL_END = "logText/progressiveText?start"
-val FINAL_LINE = "Finished: "
-val REQUEST_METHOD = "GET"
-val TEST_STARTED = "[STRL.testStarted]"
-val TEST_ENDED = "[STRL.testEnded]"
-val TEST_FAILED = "[STRL.testFailed]"
-val TEST_FAILED_REASON = "$TEST_FAILED failed"
-val REPLACE_STRINGS: List<String> = mutableListOf(TEST_STARTED,TEST_ENDED,TEST_FAILED,"[SDR.printStream]","test=com.cardinalhealth.alfred.patient.activity.","STDOUT")
-val DATE_FORMAT = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
+val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
+val buildNumber = "1453"
+val urlSuffix = "logText/progressiveText?start"
+val finalLine = "Finished: "
+val requestMethod = "GET"
+val testStarted = "[STRL.testStarted]"
+val testEnded = "[STRL.testEnded]"
+val testFailed = "[STRL.testFailed]"
+val testFailedReason = "$testFailed failed"
+val replaceStrings: List<String> = mutableListOf(testStarted, testEnded, testFailed,"[SDR.printStream]","test=com.cardinalhealth.alfred.patient.activity.","STDOUT")
+val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
@@ -45,25 +45,25 @@ fun getContentsFromUrl()
 }
 
 fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String  {
-    var time = executionTime / 1000
+    val time = executionTime / 1000
     if (time < 60) {
         return "$time sec."
     }
-    var minutes = (time / 60)
+    val minutes = (time / 60)
     return "$minutes min. ${time - (minutes * 60)} sec."
 }
 
 private fun getBufferedReader(): BufferedReader {
-    var content = getInputStreamFromConnection()
+    val content = getInputStreamFromConnection()
     return BufferedReader(InputStreamReader(content))
 }
 
 private fun getInputStreamFromConnection(): InputStream {
-    val url = URL ("$BASE_URL/$BUILD_NUMBER/$URL_END=$startIndex")
+    val url = URL ("$baseURL/$buildNumber/$urlSuffix=$startIndex")
     val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" +  System.getenv("pw")).toByteArray(charset("utf-8")))
     val connection = url.openConnection() as HttpURLConnection
 
-    connection.requestMethod = REQUEST_METHOD
+    connection.requestMethod = requestMethod
     connection.doOutput = true
     connection.setRequestProperty("Authorization", "Basic $encoding")
 
@@ -72,7 +72,7 @@ private fun getInputStreamFromConnection(): InputStream {
 
 private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader){
     while (true) {
-        var line = reader.readLine() ?: break
+        val line = reader.readLine() ?: break
         processCurrentLine(line)
     }
 }
@@ -82,23 +82,23 @@ private fun generateRunTimeStats() {
 }
 
 private fun processCurrentLine(line: String) {
-    if (line.contains(TEST_STARTED)) {
+    if (line.contains(testStarted)) {
         startList.add(line)
-    } else if (line.contains(TEST_ENDED) || line.contains(TEST_FAILED)) {
+    } else if (line.contains(testEnded) || line.contains(testFailed)) {
         parseEntry(line)
     }
 
     startIndex += line.toByteArray().size
-    finishedProcessingBuildJob = line.startsWith(FINAL_LINE)
+    finishedProcessingBuildJob = line.startsWith(finalLine)
 }
 
 fun parseEntry(contents: String) {
     try {
-        if (!contents.contains(TEST_FAILED_REASON)) {
+        if (!contents.contains(testFailedReason)) {
             val entryEndDateTime = getDateString(contents)
             val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime,""))
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
-            val testPassed = contents.contains(TEST_ENDED)
+            val testPassed = contents.contains(testEnded)
 
             println("Test: $testName, Execution Time: ${ convertExecutionTimeToMinutesAndSeconds(executionTime) }, Tablet Id: $tabletId, Test Passed: $testPassed")
 
@@ -112,8 +112,8 @@ fun parseEntry(contents: String) {
 
 private fun getTestExecutionTime(testName: String, entryEndDateTime: String): Long {
     val entryStartDateTime = getDateString(getCorrespondingStartEntry(testName))
-    val startDT = DATE_FORMAT.parse(entryStartDateTime)
-    val endDT = DATE_FORMAT.parse(entryEndDateTime)
+    val startDT = dateFormat.parse(entryStartDateTime)
+    val endDT = dateFormat.parse(entryEndDateTime)
 
     return endDT.time - startDT.time
 }
@@ -123,9 +123,9 @@ private fun getCorrespondingStartEntry(testName: String): String {
 }
 
 private fun getTestNameAndTabletId(contents: String): Pair<String, String> {
-    var parts = contents.split(' ').filter{ c -> !REPLACE_STRINGS.contains(c) && c.isNotEmpty()}
-    var testName = parts[1]
-    var tabletId = parts[0].replace("[","").replace("]","")
+    val parts = contents.split(' ').filter{ c -> !replaceStrings.contains(c) && c.isNotEmpty()}
+    val testName = parts[1]
+    val tabletId = parts[0].replace("[","").replace("]","")
     return Pair(testName, tabletId)
 }
 

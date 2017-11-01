@@ -6,8 +6,8 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
-val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-val buildNumber = "1453"
+val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Develop"
+val buildNumber = "632"
 val urlSuffix = "logText/progressiveText?start"
 val finalLine = "Finished: "
 val requestMethod = "GET"
@@ -15,13 +15,15 @@ val testStarted = "[STRL.testStarted]"
 val testEnded = "[STRL.testEnded]"
 val testFailed = "[STRL.testFailed]"
 val testFailedReason = "$testFailed failed"
-val replaceStrings: List<String> = mutableListOf(testStarted, testEnded, testFailed,"[SDR.printStream]","test=com.cardinalhealth.alfred.patient.activity.","STDOUT")
+val testCountPrepend = "[STRL.testRunStarted] testCount="
+val replaceStrings: List<String> = mutableListOf(testStarted, testEnded, testFailed, "[SDR.printStream]", "test=com.cardinalhealth.alfred.patient.activity.", "STDOUT")
 val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
 var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
 var startIndex: Int = 0
+var totalTestCount: Int = 0
 var finishedProcessingBuildJob = false
 
 fun main(args: Array<String>) {
@@ -31,11 +33,10 @@ fun main(args: Array<String>) {
 
 fun processContents() {
     generateRunTimeStats()
-    println("Test Count: ${entries.size}, Tests Passed: ${entries.filter{entry -> entry.testPassed }.count()}, Tests Failed: ${entries.filter{entry -> !entry.testPassed }.count()}")
+    println("Test Count: ${entries.size}, Tests Passed: ${entries.filter { entry -> entry.testPassed }.count()}, Tests Failed: ${entries.filter { entry -> !entry.testPassed }.count()}")
 }
 
-fun getContentsFromUrl()
-{
+fun getContentsFromUrl() {
     processNewLinesAndGetNewStartIndex(getBufferedReader())
 
     if (!finishedProcessingBuildJob) {
@@ -44,7 +45,7 @@ fun getContentsFromUrl()
     }
 }
 
-fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String  {
+fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String {
     val time = executionTime / 1000
     if (time < 60) {
         return "$time sec."
@@ -59,8 +60,8 @@ private fun getBufferedReader(): BufferedReader {
 }
 
 private fun getInputStreamFromConnection(): InputStream {
-    val url = URL ("$baseURL/$buildNumber/$urlSuffix=$startIndex")
-    val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" +  System.getenv("pw")).toByteArray(charset("utf-8")))
+    val url = URL("$baseURL/$buildNumber/$urlSuffix=$startIndex")
+    val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" + System.getenv("pw")).toByteArray(charset("utf-8")))
     val connection = url.openConnection() as HttpURLConnection
 
     connection.requestMethod = requestMethod
@@ -70,7 +71,7 @@ private fun getInputStreamFromConnection(): InputStream {
     return connection.inputStream
 }
 
-private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader){
+private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader) {
     while (true) {
         val line = reader.readLine() ?: break
         processCurrentLine(line)
@@ -86,21 +87,28 @@ private fun processCurrentLine(line: String) {
         startList.add(line)
     } else if (line.contains(testEnded) || line.contains(testFailed)) {
         parseEntry(line)
+    } else if (line.contains(testCountPrepend)) {
+        parseTestCount(line)
     }
 
     startIndex += line.toByteArray().size
     finishedProcessingBuildJob = line.startsWith(finalLine)
 }
 
+fun parseTestCount(line: String) {
+    totalTestCount += line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
+    println("Total test count: $totalTestCount")
+}
+
 fun parseEntry(contents: String) {
     try {
         if (!contents.contains(testFailedReason)) {
             val entryEndDateTime = getDateString(contents)
-            val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime,""))
+            val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime, ""))
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
             val testPassed = contents.contains(testEnded)
 
-            println("Test: $testName, Execution Time: ${ convertExecutionTimeToMinutesAndSeconds(executionTime) }, Tablet Id: $tabletId, Test Passed: $testPassed")
+            println("Test: $testName, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}, Tablet Id: $tabletId, Test Passed: $testPassed")
 
             populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))
@@ -123,14 +131,14 @@ private fun getCorrespondingStartEntry(testName: String): String {
 }
 
 private fun getTestNameAndTabletId(contents: String): Pair<String, String> {
-    val parts = contents.split(' ').filter{ c -> !replaceStrings.contains(c) && c.isNotEmpty()}
+    val parts = contents.split(' ').filter { c -> !replaceStrings.contains(c) && c.isNotEmpty() }
     val testName = parts[1]
-    val tabletId = parts[0].replace("[","").replace("]","")
+    val tabletId = parts[0].replace("[", "").replace("]", "")
     return Pair(testName, tabletId)
 }
 
-fun getDateString (rawData: String): String {
-    return rawData.substring(0,19)
+fun getDateString(rawData: String): String {
+    return rawData.substring(0, 19)
 }
 
 private fun populateAggregateMap(tabletId: String, executionTime: Long) {

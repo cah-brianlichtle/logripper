@@ -59,18 +59,20 @@ fun waitForNextBuild() {
             waitForNextBuild()
         } else {
             processContents()
-
-            entries = mutableListOf()
-            startList = mutableListOf()
-            aggregationList = mutableMapOf()
-            tabletList = mutableListOf()
-            startIndex = 0
-            totalTestCount = 0
-            finishedProcessingBuildJob = false
-
+            resetInternals()
             getContentsFromUrl()
         }
     }
+}
+
+private fun resetInternals() {
+    entries = mutableListOf()
+    startList = mutableListOf()
+    aggregationList = mutableMapOf()
+    tabletList = mutableListOf()
+    startIndex = 0
+    totalTestCount = 0
+    finishedProcessingBuildJob = false
 }
 
 fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String {

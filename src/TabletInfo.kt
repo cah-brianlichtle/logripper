@@ -1,0 +1,1 @@
+data class TabletInfo(var tabletId: String, var totalTestCount: Int, var testRemainingCount: Int)

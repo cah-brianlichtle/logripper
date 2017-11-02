@@ -22,6 +22,7 @@ val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
 var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
+var tabletList: MutableList<TabletInfo> = mutableListOf()
 var startIndex: Int = 0
 var totalTestCount: Int = 0
 var finishedProcessingBuildJob = false
@@ -83,21 +84,27 @@ private fun generateRunTimeStats() {
 }
 
 private fun processCurrentLine(line: String) {
-    if (line.contains(testStarted)) {
-        startList.add(line)
-    } else if (line.contains(testEnded) || line.contains(testFailed)) {
-        parseEntry(line)
-    } else if (line.contains(testCountPrepend)) {
-        parseTestCount(line)
+    when {
+        line.matches("[a-zA-Z\\d]*\\tdevice".toRegex()) -> addTabletToList(line)
+        line.contains(testCountPrepend) -> parseTestCount(line)
+        line.contains(testStarted) -> startList.add(line)
+        line.contains(testEnded) || line.contains(testFailed) -> parseEntry(line)
     }
 
     startIndex += line.toByteArray().size
     finishedProcessingBuildJob = line.startsWith(finalLine)
 }
 
+fun addTabletToList(line: String) {
+    tabletList.add(TabletInfo(line.substringBefore("\t"),0,0))
+}
+
 fun parseTestCount(line: String) {
-    totalTestCount += line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
-    println("Total test count: $totalTestCount")
+    var testCount = line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
+    var tablet = tabletList.filter { tablet -> line.contains(tablet.tabletId) }[0]
+    tablet.testRemainingCount = testCount
+    tablet.totalTestCount = testCount
+    totalTestCount += testCount
 }
 
 fun parseEntry(contents: String) {

@@ -105,6 +105,11 @@ fun parseTestCount(line: String) {
     tablet.testRemainingCount = testCount
     tablet.totalTestCount = testCount
     totalTestCount += testCount
+
+    if (!tabletList.any{ tablet -> tablet.totalTestCount == 0}) {
+        println("Total Test Count: $totalTestCount")
+        tabletList.forEach { tablet -> println("Tablet: ${tablet.tabletId} - Test Count: ${tablet.totalTestCount}") }
+    }
 }
 
 fun parseEntry(contents: String) {

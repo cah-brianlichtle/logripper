@@ -57,8 +57,9 @@ fun getContentsFromUrl() {
 fun waitForNextBuild() {
     var tryAgain = true
     while (tryAgain) {
-        if (checkForNextBuild(getBufferedReader())) {
-            Thread.sleep(10000)
+        if (getInputStreamFromConnection() == null) {
+            println("Waiting for next build....")
+            Thread.sleep(60000)
             waitForNextBuild()
         } else {
             processContents()
@@ -99,16 +100,20 @@ private fun getBufferedReader(): BufferedReader {
     return BufferedReader(InputStreamReader(content))
 }
 
-private fun getInputStreamFromConnection(): InputStream {
-    val url = URL("$baseURL/$buildNumber/$urlSuffix=$startIndex")
-    val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" + System.getenv("pw")).toByteArray(charset("utf-8")))
-    val connection = url.openConnection() as HttpURLConnection
+private fun getInputStreamFromConnection(): InputStream? {
+    try {
+        val url = URL("$baseURL/$buildNumber/$urlSuffix=$startIndex")
+        val encoding = DatatypeConverter.printBase64Binary((System.getenv("un") + ":" + System.getenv("pw")).toByteArray(charset("utf-8")))
+        val connection = url.openConnection() as HttpURLConnection
 
-    connection.requestMethod = requestMethod
-    connection.doOutput = true
-    connection.setRequestProperty("Authorization", "Basic $encoding")
+        connection.requestMethod = requestMethod
+        connection.doOutput = true
+        connection.setRequestProperty("Authorization", "Basic $encoding")
 
-    return connection.inputStream
+        return connection.inputStream
+    } catch (exception: Exception) {
+        return null
+    }
 }
 
 private fun processNewLinesAndGetNewStartIndex(reader: BufferedReader) {

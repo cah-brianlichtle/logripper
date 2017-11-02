@@ -6,8 +6,8 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
-val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Develop"
-val buildNumber = "632"
+val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
+var buildNumber = 1450
 val urlSuffix = "logText/progressiveText?start"
 val finalLine = "Finished: "
 val requestMethod = "GET"
@@ -29,13 +29,17 @@ var totalTestCount: Int = 0
 var finishedProcessingBuildJob = false
 
 fun main(args: Array<String>) {
+    beginProcessing()
+}
+
+fun beginProcessing() {
     getContentsFromUrl()
-    processContents()
 }
 
 fun processContents() {
     generateRunTimeStats()
     println("Test Count: ${entries.size}, Tests Passed: ${entries.filter { entry -> entry.testPassed }.count()}, Tests Failed: ${entries.filter { entry -> !entry.testPassed }.count()}")
+    println("Build Number: $buildNumber")
 }
 
 fun getContentsFromUrl() {
@@ -44,7 +48,41 @@ fun getContentsFromUrl() {
     if (!finishedProcessingBuildJob) {
         Thread.sleep(2000)
         getContentsFromUrl()
+    } else {
+        buildNumber += 1
+        waitForNextBuild()
     }
+}
+
+fun waitForNextBuild() {
+    var tryAgain = true
+    while (tryAgain) {
+        if (checkForNextBuild(getBufferedReader())) {
+            Thread.sleep(10000)
+            waitForNextBuild()
+        } else {
+            processContents()
+
+            entries = mutableListOf()
+            startList = mutableListOf()
+            aggregationList = mutableMapOf()
+            tabletList = mutableListOf()
+            startIndex = 0
+            totalTestCount = 0
+            finishedProcessingBuildJob = false
+
+            beginProcessing()
+        }
+    }
+}
+
+fun checkForNextBuild(reader: BufferedReader): Boolean  {
+    var isNextBuild = false
+    while(true) {
+        val line = reader.readLine() ?: break
+        isNextBuild = line.contains("HTTP ERROR 404")
+    }
+    return isNextBuild
 }
 
 fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String {
@@ -126,16 +164,20 @@ fun parseEntry(contents: String) {
         } else {
             "FAILED"
         }
-        val tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
-        tablet.testRemainingCount -= 1
-        totalTestCount -= 1
+        val tablets = tabletList.filter { tablet -> tabletId == tablet.tabletId }
 
-        println("Test $status: ${testName.replace(replaceTestInfo,"")}")
-        println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
-        println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
+        if (tablets.isNotEmpty()) {
+            var tablet = tablets[0]
+            tablet.testRemainingCount -= 1
+            totalTestCount -= 1
 
-        populateAggregateMap(tabletId, executionTime)
-        entries.add(Entry(testName, tabletId, executionTime, testPassed))
+            println("Test $status: ${testName.replace(replaceTestInfo,"")}")
+            println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
+            println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
+
+            populateAggregateMap(tabletId, executionTime)
+            entries.add(Entry(testName, tabletId, executionTime, testPassed))
+        }
     } catch (ex: Exception) {
         println("ERROR PARSING ENTRY: $contents")
     }

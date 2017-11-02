@@ -68,7 +68,7 @@ fun waitForNextBuild() {
             totalTestCount = 0
             finishedProcessingBuildJob = false
 
-            beginProcessing()
+            getContentsFromUrl()
         }
     }
 }

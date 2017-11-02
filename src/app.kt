@@ -115,27 +115,27 @@ fun parseTestCount(line: String) {
 
 fun parseEntry(contents: String) {
     try {
-        if (!contents.contains(testFailedReason)) {
-            val entryEndDateTime = getDateString(contents)
-            val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime, ""))
-            val executionTime = getTestExecutionTime(testName, entryEndDateTime)
-            val testPassed = contents.contains(testEnded)
-            val status = if (testPassed) {
-                "PASSED"
-            } else {
-                "FAILED"
-            }
-            val tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
-            tablet.testRemainingCount -= 1
-            totalTestCount -= 1
+        if (contents.contains(testFailedReason)) { return }
 
-            println("Test $status: ${testName.replace(replaceTestInfo,"")}")
-            println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
-            println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
-
-            populateAggregateMap(tabletId, executionTime)
-            entries.add(Entry(testName, tabletId, executionTime, testPassed))
+        val entryEndDateTime = getDateString(contents)
+        val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime, ""))
+        val executionTime = getTestExecutionTime(testName, entryEndDateTime)
+        val testPassed = contents.contains(testEnded)
+        val status = if (testPassed) {
+            "PASSED"
+        } else {
+            "FAILED"
         }
+        val tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
+        tablet.testRemainingCount -= 1
+        totalTestCount -= 1
+
+        println("Test $status: ${testName.replace(replaceTestInfo,"")}")
+        println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
+        println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
+
+        populateAggregateMap(tabletId, executionTime)
+        entries.add(Entry(testName, tabletId, executionTime, testPassed))
     } catch (ex: Exception) {
         println("ERROR PARSING ENTRY: $contents")
     }
@@ -165,11 +165,12 @@ fun getDateString(rawData: String): String {
 }
 
 private fun populateAggregateMap(tabletId: String, executionTime: Long) {
-    if (!aggregationList.containsKey(tabletId)) {
-        aggregationList.put(tabletId, TabletResults(1, executionTime))
-    } else {
-        val tabletResults = aggregationList[tabletId]
-        val numberOfTests = tabletResults?.numberOfTests ?: throw RuntimeException("a description of this epic failure")
-        aggregationList[tabletId] = TabletResults(numberOfTests.plus(1), tabletResults.totalRunTime.plus(executionTime))
+    when {
+        !aggregationList.containsKey(tabletId) -> aggregationList.put(tabletId, TabletResults(1, executionTime))
+        else -> {
+            val tabletResults = aggregationList[tabletId]
+            val numberOfTests = tabletResults?.numberOfTests ?: throw RuntimeException("a description of this epic failure")
+            aggregationList[tabletId] = TabletResults(numberOfTests.plus(1), tabletResults.totalRunTime.plus(executionTime))
+        }
     }
 }

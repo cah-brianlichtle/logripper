@@ -126,11 +126,12 @@ fun parseEntry(contents: String) {
                 "FAILED"
             }
             var tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
-            tablet.testRemainingCount = tablet.testRemainingCount - 1
+            tablet.testRemainingCount -= 1
+            totalTestCount -= 1
 
             println("Test $status: ${testName.replace(replaceTestInfo,"")}")
-            println("     Tablet Id: $tabletId, Tests Remaining: ${tablet.testRemainingCount}/${tablet.totalTestCount}")
-            println("     Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
+            println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
+            println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
 
             populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))

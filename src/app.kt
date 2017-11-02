@@ -101,10 +101,10 @@ fun addTabletToList(line: String) {
 }
 
 fun parseTestCount(line: String) {
-    var testCount = line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
-    var tablet = tabletList.filter { tablet -> line.contains(tablet.tabletId) }[0]
-    tablet.testRemainingCount = testCount
-    tablet.totalTestCount = testCount
+    val testCount = line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
+    val currentTablet = tabletList.filter { tablet -> line.contains(tablet.tabletId) }[0]
+    currentTablet.testRemainingCount = testCount
+    currentTablet.totalTestCount = testCount
     totalTestCount += testCount
 
     if (!tabletList.any{ tablet -> tablet.totalTestCount == 0}) {
@@ -125,7 +125,7 @@ fun parseEntry(contents: String) {
             } else {
                 "FAILED"
             }
-            var tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
+            val tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
             tablet.testRemainingCount -= 1
             totalTestCount -= 1
 

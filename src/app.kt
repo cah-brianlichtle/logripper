@@ -18,6 +18,7 @@ val testFailedReason = "$testFailed failed"
 val testCountPrepend = "[STRL.testRunStarted] testCount="
 val replaceStrings: List<String> = mutableListOf(testStarted, testEnded, testFailed, "[SDR.printStream]", "test=com.cardinalhealth.alfred.patient.activity.", "STDOUT")
 val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
+val replaceTestInfo = "test=com.cardinalhealth.alfred.patient.activity."
 
 var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
@@ -119,8 +120,17 @@ fun parseEntry(contents: String) {
             val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime, ""))
             val executionTime = getTestExecutionTime(testName, entryEndDateTime)
             val testPassed = contents.contains(testEnded)
+            val status = if (testPassed) {
+                "PASSED"
+            } else {
+                "FAILED"
+            }
+            var tablet = tabletList.filter { tablet -> tabletId == tablet.tabletId }[0]
+            tablet.testRemainingCount = tablet.testRemainingCount - 1
 
-            println("Test: $testName, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}, Tablet Id: $tabletId, Test Passed: $testPassed")
+            println("Test $status: ${testName.replace(replaceTestInfo,"")}")
+            println("     Tablet Id: $tabletId, Tests Remaining: ${tablet.testRemainingCount}/${tablet.totalTestCount}")
+            println("     Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
 
             populateAggregateMap(tabletId, executionTime)
             entries.add(Entry(testName, tabletId, executionTime, testPassed))

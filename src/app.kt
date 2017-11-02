@@ -29,10 +29,6 @@ var totalTestCount: Int = 0
 var finishedProcessingBuildJob = false
 
 fun main(args: Array<String>) {
-    beginProcessing()
-}
-
-fun beginProcessing() {
     getContentsFromUrl()
 }
 

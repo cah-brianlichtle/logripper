@@ -77,15 +77,6 @@ fun waitForNextBuild() {
     }
 }
 
-fun checkForNextBuild(reader: BufferedReader): Boolean  {
-    var isNextBuild = false
-    while(true) {
-        val line = reader.readLine() ?: break
-        isNextBuild = line.contains("HTTP ERROR 404")
-    }
-    return isNextBuild
-}
-
 fun convertExecutionTimeToMinutesAndSeconds(executionTime: Long): String {
     val time = executionTime / 1000
     if (time < 60) {

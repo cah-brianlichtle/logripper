@@ -140,7 +140,6 @@ fun parseStart(line: String) {
 
         if (tabletId != null && trueTabletId != null && currentTablet.tests.isEmpty()) {
             var tests = testGroupList.filter { entry -> entry.value.equals(tabletId) }
-//            tabletList.add(TabletInfo(trueTabletId, tests.count(), tests.count()))
             tests.forEach { test -> testGroupList.remove(test.key) }
 
             currentTablet.testRemainingCount = tests.count()
@@ -168,7 +167,11 @@ fun parseSpoon2TestCount(line: String) {
         largestEntry!!.value + 1
     }
 
-    line.substringAfter("tests: [").substringBefore(']').split(", ").forEach { entry -> testGroupList.put(entry, tabletCount) }
+    line.substringAfter("tests: [")
+            .substringBefore(']')
+            .split(", ")
+            .filter { testName -> !testName.endsWith("null")} // ignored tests end w/ null in spoon 2.0.0
+            .forEach { testName -> testGroupList.put(testName, tabletCount) }
 }
 
 

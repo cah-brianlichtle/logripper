@@ -7,15 +7,15 @@ import java.text.SimpleDateFormat
 import javax.xml.bind.DatatypeConverter
 
 val baseURL = "http://build.cahcommtech.com/job/alfred-Device-Acceptance-Manual"
-var buildNumber = 1450
+var buildNumber = 1465
 val urlSuffix = "logText/progressiveText?start"
 val finalLine = "Finished: "
 val requestMethod = "GET"
-val testStarted = "[STRL.testStarted]"
+val testStarted = "[SDR.run] Running"
 val testEnded = "[STRL.testEnded]"
 val testFailed = "[STRL.testFailed]"
 val testFailedReason = "$testFailed failed"
-val testCountPrepend = "[STRL.testRunStarted] testCount="
+val testCountPrepend = "[SDR.run] Active tests" // --> Need to count number of tests --> items in array
 val replaceStrings: List<String> = mutableListOf(testStarted, testEnded, testFailed, "[SDR.printStream]", "test=com.cardinalhealth.alfred.patient.activity.", "STDOUT")
 val dateFormat = SimpleDateFormat("yyyy-dd-MM hh:mm:ss")
 val replaceTestInfo = "test=com.cardinalhealth.alfred.patient.activity."
@@ -24,6 +24,7 @@ var entries: MutableList<Entry> = mutableListOf()
 var startList: MutableList<String> = mutableListOf()
 var aggregationList: MutableMap<String, TabletResults> = mutableMapOf()
 var tabletList: MutableList<TabletInfo> = mutableListOf()
+var testGroupList: MutableMap<String, Int> = mutableMapOf()
 var startIndex: Int = 0
 var totalTestCount: Int = 0
 var finishedProcessingBuildJob = false
@@ -119,8 +120,8 @@ private fun generateRunTimeStats() {
 private fun processCurrentLine(line: String) {
     when {
         line.matches("[a-zA-Z\\d]*\\tdevice".toRegex()) -> addTabletToList(line)
-        line.contains(testCountPrepend) -> parseTestCount(line)
-        line.contains(testStarted) -> startList.add(line)
+        line.contains(testCountPrepend) -> parseSpoon2TestCount(line)
+        line.contains(testStarted) -> parseStart(line)
         line.contains(testEnded) || line.contains(testFailed) -> parseEntry(line)
     }
 
@@ -128,26 +129,54 @@ private fun processCurrentLine(line: String) {
     finishedProcessingBuildJob = line.startsWith(finalLine)
 }
 
-fun addTabletToList(line: String) {
-    tabletList.add(TabletInfo(line.substringBefore("\t"),0,0))
-}
+fun parseStart(line: String) {
+    startList.add(line)
 
-fun parseTestCount(line: String) {
-    val testCount = line.substringAfter(testCountPrepend).substringBefore(" runName").toInt()
-    val currentTablet = tabletList.filter { tablet -> line.contains(tablet.tabletId) }[0]
-    currentTablet.testRemainingCount = testCount
-    currentTablet.totalTestCount = testCount
-    totalTestCount += testCount
+    val testName = line.substringAfter("Running ").substringBefore(" [")
+    if (testGroupList.count() > 0) {
+        var tabletId = testGroupList[testName]
+        var trueTabletId = line.substringAfterLast('[').substringBefore(']')
+        val currentTablet = tabletList.filter { tablet -> tablet.tabletId.equals(trueTabletId) }.first()
 
-    if (!tabletList.any{ tablet -> tablet.totalTestCount == 0}) {
-        println("Total Test Count: $totalTestCount")
-        tabletList.forEach { tablet -> println("Tablet: ${tablet.tabletId} - Test Count: ${tablet.totalTestCount}") }
+        if (tabletId != null && trueTabletId != null && currentTablet.tests.isEmpty()) {
+            var tests = testGroupList.filter { entry -> entry.value.equals(tabletId) }
+//            tabletList.add(TabletInfo(trueTabletId, tests.count(), tests.count()))
+            tests.forEach { test -> testGroupList.remove(test.key) }
+
+            currentTablet.testRemainingCount = tests.count()
+            currentTablet.totalTestCount = tests.count()
+            currentTablet.tests = tests.keys.toList()
+            totalTestCount += tests.count()
+
+            if (!tabletList.any { tablet -> tablet.totalTestCount == 0 }) {
+                println("Total Test Count: $totalTestCount")
+                tabletList.forEach { tablet -> println("Tablet: ${tablet.tabletId} - Test Count: ${tablet.totalTestCount}") }
+            }
+        }
     }
 }
 
+fun addTabletToList(line: String) {
+    tabletList.add(TabletInfo(line.substringBefore("\t"), 0, 0, mutableListOf()))
+}
+
+fun parseSpoon2TestCount(line: String) {
+    val tabletCount = if (testGroupList.count() == 0) {
+        1
+    } else {
+        val largestEntry = testGroupList.maxBy { entry -> entry.value }
+        largestEntry!!.value + 1
+    }
+
+    line.substringAfter("tests: [").substringBefore(']').split(", ").forEach { entry -> testGroupList.put(entry, tabletCount) }
+}
+
+
 fun parseEntry(contents: String) {
     try {
-        if (contents.contains(testFailedReason)) { return }
+        if (contents.contains(testFailedReason)) {
+            return
+        }
 
         val entryEndDateTime = getDateString(contents)
         val (testName, tabletId) = getTestNameAndTabletId(contents.replace(entryEndDateTime, ""))
@@ -158,14 +187,14 @@ fun parseEntry(contents: String) {
         } else {
             "FAILED"
         }
-        val tablets = tabletList.filter { tablet -> tabletId == tablet.tabletId }
+        val tablets = tabletList.filter { tablet -> tabletId.equals(tablet.tabletId) }
 
         if (tablets.isNotEmpty()) {
             var tablet = tablets[0]
             tablet.testRemainingCount -= 1
             totalTestCount -= 1
 
-            println("Test $status: ${testName.replace(replaceTestInfo,"")}")
+            println("Test $status: ${testName.replace(replaceTestInfo, "")}")
             println("     Tablet Id: $tabletId, Execution Time: ${convertExecutionTimeToMinutesAndSeconds(executionTime)}")
             println("     Tests Remaining For Tablet: ${tablet.testRemainingCount}/${tablet.totalTestCount}, Total Tests Remaining: $totalTestCount")
 
@@ -173,6 +202,7 @@ fun parseEntry(contents: String) {
             entries.add(Entry(testName, tabletId, executionTime, testPassed))
         }
     } catch (ex: Exception) {
+        ex.printStackTrace()
         println("ERROR PARSING ENTRY: $contents")
     }
 }
@@ -192,7 +222,13 @@ private fun getCorrespondingStartEntry(testName: String): String {
 private fun getTestNameAndTabletId(contents: String): Pair<String, String> {
     val parts = contents.split(' ').filter { c -> !replaceStrings.contains(c) && c.isNotEmpty() }
     val testName = parts[1]
-    val tabletId = parts[0].replace("[", "").replace("]", "")
+    var tabletId: String = ""
+
+    try {
+        tabletId = tabletList.filter { tablet -> tablet.tests.contains(testName) }[0].tabletId
+    } catch (ex: Exception) {
+        println("ERROR YOU SUCK")
+    }
     return Pair(testName, tabletId)
 }
 

@@ -10,12 +10,12 @@ buildscript {
     }
 }
 
-
-apply plugin: "java"
 apply plugin: "kotlin"
 apply plugin: "application"
 
-mainClassName="com.cardinalhealth.fuse.logripper.LogRipperKt"
+mainClassName='LogRipperKt'
+
+defaultTasks 'run'
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ repositories {
 
 dependencies {
     compile("org.jetbrains.kotlin:kotlin-stdlib-jre8:${kotlinVersion}")
-
     testCompile("junit:junit:4.12")
     testCompile("org.assertj:assertj-core:3.5.2")
 }
+
